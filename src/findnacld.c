@@ -2,7 +2,8 @@
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
-#include "websocket.h"
+#include "common.h"
+#include <errno.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
@@ -43,7 +44,8 @@ int send_pid_fd(int conn, long pid, int fd)
         cmsg->cmsg_type = SCM_RIGHTS;
         cmsg->cmsg_len = CMSG_LEN(sizeof(int));
 
-        *((int *)CMSG_DATA(cmsg)) = fd;
+        int *imsg = (int *)CMSG_DATA(cmsg);
+        *imsg = fd;
     } else {
         msg.msg_control = NULL;
         msg.msg_controllen = 0;
@@ -57,7 +59,7 @@ int find_nacl(int conn)
 {
     char argbuf[70], outbuf[256];
     char* cut;
-    int idx = 0, c;
+    int c;
 
     if ((c = read(conn, argbuf, sizeof(argbuf)-1)) < 0) {
        syserror("Failed to read arguments");
@@ -116,11 +118,9 @@ int find_nacl(int conn)
 
 int main()
 {
-    int sock, conn, n, i, fd;
+    int sock, conn, fd;
     int maxfd;
     struct sockaddr_un addr;
-    struct epoll_event ev, events[MAX_EVENTS];
-    char args[64];
     fd_set readset, recvset;
 
     /* Set egid to be 27 (video) and change the umask to 007,
@@ -166,7 +166,7 @@ int main()
 
     for (;;) {
         memcpy(&recvset, &readset, sizeof(recvset));
-        n = select(maxfd + 1, &recvset, NULL, NULL, NULL);
+        select(maxfd + 1, &recvset, NULL, NULL, NULL);
 
         for (fd = 0; fd <= maxfd; fd++) {
             if (FD_ISSET(fd, &recvset)) {
